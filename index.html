@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARG Maker: Case File (Full AI)</title>
+    <style>
+        :root {
+            /* White Document Style */
+            --bg-root: #f4f4f4; --bg-panel: #ffffff;
+            --text-main: #333333; --text-sub: #666666;
+            --border: #cccccc; --accent: #000000; --accent-hover: #333333;
+            /* Colors */
+            --chat-bg: #8da0b6; --chat-bubble-npc: #ffffff; --chat-bubble-player: #8de055;
+            --theme-edu: #0056b3; --theme-story: #111111; --theme-sys: #555555;
+            --active-color: var(--theme-edu); /* Dynamic */
+            /* Fonts */
+            --font-base: "Helvetica Neue", Arial, sans-serif; --font-mono: "Menlo", monospace; --font-serif: "Yu Mincho", serif;
+        }
+        body { font-family: var(--font-base); background-color: var(--bg-root); color: var(--text-main); margin: 0; display: flex; height: 100vh; overflow: hidden; transition: background 0.3s; }
+
+        /* Start Screen */
+        #start-screen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #fff; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.8s; }
+        #start-screen.fade-out { opacity: 0; pointer-events: none; }
+        .start-title { font-size: 3rem; font-weight: 900; letter-spacing: 0.2em; margin-bottom: 60px; }
+        .start-btn { background: #000; color: #fff; font-size: 1.2rem; font-weight: bold; padding: 15px 50px; border: none; cursor: pointer; transition: transform 0.2s; letter-spacing: 0.1em; }
+        .start-btn:hover { transform: scale(1.05); }
+
+        /* Sidebar */
+        .sidebar { width: 260px; background: var(--bg-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; z-index: 10; }
+        .app-title { font-size: 1.1rem; font-weight: 900; padding: 20px; text-align: center; letter-spacing: 0.1em; font-family: var(--font-mono); border-bottom: 1px solid var(--border); }
+        .step-list { list-style: none; padding: 20px; margin: 0; overflow-y: auto; }
+        .list-header { font-size: 0.7rem; font-weight: bold; color: #999; margin-top: 15px; margin-bottom: 5px; padding-left: 10px; letter-spacing: 0.05em; text-transform: uppercase; }
+        .list-header:first-child { margin-top: 0; }
+        .step-item { padding: 12px 15px; cursor: pointer; transition: all 0.2s; font-size: 0.9rem; color: var(--text-sub); border-radius: 6px; margin-bottom: 2px; display: flex; align-items: center; }
+        .step-item:hover { background: #f5f5f5; color: var(--text-main); }
+        .step-item.active { background: #f0f0f0; color: var(--active-color); font-weight: bold; position: relative; }
+        .step-item.active::before { content: ''; position: absolute; left: 0; top: 10%; height: 80%; width: 4px; background: var(--active-color); border-radius: 0 2px 2px 0; }
+        .step-icon { width: 20px; margin-right: 8px; text-align: center; opacity: 0.7; font-family: var(--font-mono); font-size: 0.8rem; }
+
+        /* Main Area */
+        .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .mode-status-bar { height: 50px; background: var(--active-color); color: white; display: flex; align-items: center; padding: 0 40px; font-weight: bold; letter-spacing: 0.1em; font-size: 0.9rem; transition: background 0.3s; flex-shrink: 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .content-wrapper { flex: 1; display: flex; overflow: hidden; }
+        .editor-pane { flex: 1; padding: 40px 60px; overflow-y: auto; background: var(--bg-root); }
+        
+        .step-container { max-width: 850px; margin: 0 auto; background: var(--bg-panel); padding: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: none; margin-bottom: 100px; border-top: 4px solid var(--active-color); animation: fadeIn 0.4s ease-out; }
+        .step-container.active { display: block; }
+
+        /* Elements */
+        h2 { font-size: 1.5rem; border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 30px; margin-top: 0; font-weight: 900; color: var(--active-color); }
+        .description { background: #fafafa; padding: 20px; border-left: 3px solid var(--border); margin-bottom: 30px; font-size: 0.9rem; line-height: 1.8; color: var(--text-sub); }
+        .guide-box { background: #f0f8ff; padding: 15px; border: 1px solid #cfe2ff; border-radius: 4px; margin-bottom: 20px; font-size: 0.9rem; color: #084298; }
+        .form-group { margin-bottom: 30px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 0.95rem; color: #444; }
+        .sub-label { font-size: 0.8rem; color: #777; display: block; margin-bottom: 8px; line-height: 1.4; }
+        .note { font-size: 0.75rem; color: #e74c3c; margin-left: 5px; font-weight: normal; }
+        
+        input, textarea, select { width: 100%; padding: 12px; border: 1px solid #ddd; background: #fff; font-size: 1rem; box-sizing: border-box; border-radius: 4px; transition: border 0.2s; }
+        input:focus, textarea:focus { outline: none; border-color: var(--active-color); }
+        textarea { min-height: 100px; resize: vertical; }
+        textarea.large-area { min-height: 180px; }
+        textarea.code-area { background: #2d2d2d; color: #f8f8f2; font-family: var(--font-mono); border: none; font-size: 0.85rem; }
+
+        /* Buttons */
+        .btn-area { margin-top: 50px; padding-top: 30px; border-top: 1px solid #eee; display: flex; justify-content: space-between; }
+        button { background: var(--active-color); color: #fff; border: none; padding: 12px 30px; font-size: 0.9rem; cursor: pointer; font-weight: bold; border-radius: 4px; transition: opacity 0.2s; }
+        button:hover { opacity: 0.9; }
+        button.secondary { background: transparent; color: #666; border: 1px solid #ccc; }
+        button.secondary:hover { background: #f0f0f0; }
+        button.copy-btn { padding: 5px 15px; font-size: 0.8rem; margin-left: 10px; background: #eee; color: #333; }
+        button.print-btn { background: #333 !important; }
+        button.generate-btn { width: 100%; max-width: 300px; margin: 0 auto; display: block; background:#000 !important; color:#fff;}
+        
+        /* Special Button */
+        .action-row { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 10px; }
+        .ai-btn { background: linear-gradient(135deg, #000 0%, #333 100%); color: #fff; border: none; padding: 10px 20px; font-size: 0.9rem; cursor: pointer; font-weight: bold; border-radius: 4px; display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+        .ai-btn:hover { opacity: 0.9; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .manual-btn { background: transparent; border: 1px solid #ccc; color: #333; padding: 10px 20px; font-size: 0.9rem; cursor: pointer; border-radius: 4px; flex-shrink: 0;}
+        .manual-btn:hover { background: #f0f0f0; }
+
+        /* Layouts */
+        .grid-2-col, .ice-grid, .feedback-container { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        .grid-2-col { grid-template-columns: 1fr 1fr; }
+        .ice-grid { grid-template-columns: 1fr; } @media(min-width:1000px){ .ice-grid{grid-template-columns:1fr 1fr 1fr;} }
+        .feedback-container { grid-template-columns: 1fr 1fr; margin-top: 15px; padding-top: 15px; border-top: 1px dashed #eee; }
+        .wall-section { background: #fff; border: 1px solid #eee; padding: 25px; margin-bottom: 30px; border-radius: 8px; }
+        .wall-badge { display: inline-block; padding: 4px 8px; background: #eee; font-size: 0.8rem; font-weight: bold; margin-bottom: 15px; border-radius: 4px; color: #555; }
+
+        /* Preview Pane */
+        .preview-pane { width: 380px; background: #f0f2f5; border-left: 1px solid var(--border); padding: 20px; display: none; flex-direction: column; align-items: center; flex-shrink: 0; overflow-y: auto; }
+        .preview-label { font-size: 0.8rem; font-weight:bold; color: #999; margin-bottom: 10px; letter-spacing: 0.1em; text-align:center; }
+        .preview-tabs { display: flex; background: #ddd; border-radius: 20px; padding: 4px; margin-bottom: 20px; width: 300px; }
+        .preview-tab { flex: 1; border: none; background: transparent; padding: 6px; cursor: pointer; font-size: 0.8rem; font-weight: bold; color: #666; border-radius: 16px; }
+        .preview-tab.active { background: #fff; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+
+        .phone-mockup { width: 320px; height: 640px; background: #fff; border: 10px solid #333; border-radius: 30px; overflow: hidden; position: relative; box-shadow: 0 10px 25px rgba(0,0,0,0.1); display: flex; flex-direction: column; }
+        .preview-screen { display: none; flex-direction: column; height: 100%; }
+        .preview-screen.active { display: flex; }
+        
+        .email-header { background: #f9f9f9; padding: 15px; border-bottom: 1px solid #eee; }
+        .email-body { padding: 20px; font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap; overflow-y: auto; flex: 1; }
+        .email-btn { display: block; margin: 20px auto; background: #000; color: #fff; text-align: center; padding: 10px; border-radius: 4px; font-weight: bold; width: 80%; }
+        .chat-header { background: #2c3e50; color: white; padding: 15px; font-size: 0.9rem; font-weight: bold; }
+        .chat-body { flex: 1; background: var(--chat-bg); padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .bubble { max-width: 80%; padding: 10px 14px; border-radius: 14px; font-size: 0.85rem; line-height: 1.4; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 5px; }
+        .bubble.npc { background: var(--chat-bubble-npc); align-self: flex-start; }
+        .bubble.npc::before { content: attr(data-name); position: absolute; top: -18px; left: 0; font-size: 0.7rem; color: #555; }
+        .bubble.player { background: var(--chat-bubble-player); align-self: flex-end; }
+        .bubble.system { align-self: center; background: rgba(0,0,0,0.2); color: #fff; font-size: 0.7rem; padding: 4px 10px; border-radius: 10px; }
+        .epilogue-screen { background: #000; color: #fff; padding: 30px; justify-content: center; align-items: center; text-align: center; font-family: var(--font-serif); line-height: 2; }
+        .epi-text { display: none; } .epi-text.visible { display: block; animation: fadeIn 1s; }
+
+        /* Paper Preview */
+        .paper-preview-container { width: 100%; display: flex; justify-content: center; }
+        .paper-sheet { width: 100%; aspect-ratio: 210/297; background: white; box-shadow: 0 5px 15px rgba(0,0,0,0.1); padding: 20px; box-sizing: border-box; overflow: hidden; display: none; flex-direction: column; font-size: 9px; }
+        .paper-sheet.active { display: flex; }
+        .paper-white { color: #000; background: #fff; font-family: var(--font-base); }
+        .paper-black { color: #fff; background: #111; font-family: var(--font-serif); }
+        .p-title { font-size: 1.4em; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid; padding-bottom: 5px; }
+        .p-section { margin-bottom: 10px; }
+        .p-head { font-weight: bold; border-left: 2px solid; padding-left: 4px; margin-bottom: 3px; }
+        .p-body { white-space: pre-wrap; line-height: 1.5; }
+        .p-qr { width: 80px; height: 80px; background: #eee; margin: 10px auto; display:flex; align-items:center; justify-content:center; }
+
+        /* Rubric */
+        .rubric-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .rubric-table th, .rubric-table td { border: 1px solid #000; padding: 0; vertical-align: top; }
+        .rubric-table th { background: #eee; text-align: center; padding: 10px; font-weight: bold; }
+        .rubric-target-cell { width: 20%; font-weight: bold; background: #f9f9f9; padding: 10px !important; }
+        .eval-cell { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 100px; }
+        .rubric-input { width: 100%; border: none; background: transparent; font-family: inherit; font-size: 0.9rem; resize: none; padding: 10px; min-height: 80px; }
+        .print-only { display: none; }
+
+        /* Print Settings */
+        .print-only-area { display: none; }
+        @media print {
+            @page { size: A4; margin: 0; }
+            body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .sidebar, .mode-status-bar, .preview-pane, .btn-area, .step-list, .app-title, h2, h3, .description, .form-group, #start-screen { display: none !important; }
+            .editor-pane { padding: 0; margin: 0; overflow: visible; }
+            .step-container { padding: 0; margin: 0; border: none; box-shadow: none; display: none; }
+            
+            .print-step6-active .paper-print-area { display: block !important; }
+            .paper-page { width: 210mm; height: 297mm; padding: 20mm; box-sizing: border-box; page-break-after: always; position: relative; overflow: hidden; }
+            .page-white { background: white; color: black; font-family: "Helvetica Neue", sans-serif; }
+            .page-black { background: black; color: white; font-family: "Yu Mincho", serif; }
+            .print-title { font-size: 24pt; font-weight: bold; border-bottom: 2pt solid; margin-bottom: 20pt; padding-bottom: 10pt; text-align: center; }
+            .print-head { font-size: 14pt; font-weight: bold; margin-bottom: 10pt; border-left: 5pt solid; padding-left: 10pt; }
+            .print-body { font-size: 12pt; line-height: 1.6; white-space: pre-wrap; }
+            .print-qr-area { text-align: center; margin-top: 40pt; }
+            .print-qr-img { width: 150pt; height: 150pt; object-fit: contain; }
+            .print-step3-active { display: block !important; }
+            .print-step3-active .rubric-print-area { display: block !important; visibility: visible; width: 210mm; padding: 10mm; }
+            .print-step3-active .rubric-print-area h2 { display: block !important; border-bottom: none; font-size: 18pt; margin-bottom: 10px; }
+            .print-step3-active .rubric-table { font-size: 10pt; }
+            .print-only { display: table-row; }
+            .rubric-input::before { content: "□ "; }
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen">
+        <div class="start-title">ARG MAKER</div>
+        <button class="start-btn" onclick="enterApp()">つくる</button>
+    </div>
+
+    <div class="sidebar">
+        <div class="app-title">ARG MAKER</div>
+        <ul class="step-list">
+            <div class="list-header">Education (現実)</div>
+            <li class="step-item active" onclick="showStep(1)"><span class="step-icon">01</span> 学習内容の設定</li>
+            <li class="step-item" onclick="showStep(2)"><span class="step-icon">02</span> 目標設定 (ICE)</li>
+            <li class="step-item" onclick="showStep(3)"><span class="step-icon">03</span> 評価基準</li>
+            
+            <div class="list-header">Story (虚構)</div>
+            <li class="step-item" onclick="showStep(4)">04. ストーリーと役割</li>
+            <li class="step-item" onclick="showStep(5)">05. 3つの壁</li>
+            <li class="step-item" onclick="showStep(6)">06. 導入物の制作</li>
+
+            <div class="list-header">System (実装)</div>
+            <li class="step-item" onclick="showStep(7)">07. コード生成</li>
+        </ul>
+    </div>
+
+    <div class="main-area">
+        <div class="mode-status-bar" id="mode-bar"><div id="mode-label">🎓 EDUCATION MODE</div></div>
+
+        <div class="content-wrapper">
+            <div class="editor-pane">
+                
+                <!-- STEP 1 -->
+                <div id="step1" class="step-container active">
+                    <h2>01. 学習内容の設定</h2>
+                    <div class="description">
+                        ARGの基礎となるテーマを定義します。「何を学ぶか」に集中しましょう。
+                    </div>
+                    <form>
+                        <div class="form-group"><label>学ばせたいこと</label><span class="sub-label">教科、単元、スキルなど</span><input type="text" id="subject-theme" placeholder="例：人間中心設計（ペルソナ法）"></div>
+                        <div class="form-group"><label>誰に学ばせるか</label><span class="sub-label">対象者の属性</span><input type="text" id="target-audience" placeholder="例：大学1年生"></div>
+                        <div class="form-group"><label>学習内容の詳細</label><span class="sub-label">具体的に何を理解し、何ができるようになるべきか</span><textarea id="core-knowledge" class="large-area" placeholder="例：「ペルソナ」の定義を理解し、実データに基づいて作成できること。"></textarea></div>
+                        <div class="btn-area" style="justify-content:flex-end;"><button type="button" onclick="nextStep(2)">次へ (目標設定) →</button></div>
+                    </form>
+                </div>
+
+                <!-- STEP 2 -->
+                <div id="step2" class="step-container">
+                    <h2>02. 目標設定 (ICEモデル)</h2>
+                    <div class="description">
+                        学習目標を3段階で構造化します。<br>
+                        <strong>AIを使用する場合</strong>はAPIキーを入力して「生成する」を押してください。
+                    </div>
+                    
+                    <div class="form-group" style="background:#f0f8ff; padding:15px; border:1px solid #cce5ff; border-radius:4px; margin-bottom:25px;">
+                        <label>★ Google Gemini API Key (AI機能用)</label>
+                        <span class="sub-label">AIによる文章推敲機能を使う場合はここに入力してください（Step 7と連動）</span>
+                        <input type="password" id="api-key-s2" oninput="syncKey('s2')" placeholder="AIzaSy..." style="font-family:monospace;">
+                    </div>
+
+                    <div class="ice-grid">
+                        <div class="form-group"><label>I : Ideas (基礎)</label><span class="sub-label">用語や定義を知っている</span><textarea id="ice-i-input" placeholder="例：ペルソナの定義を言える"></textarea></div>
+                        <div class="form-group"><label>C : Connections (つながり)</label><span class="sub-label">文脈や関係性を理解している</span><textarea id="ice-c-input" placeholder="例：なぜ製品開発に必要なのか説明できる"></textarea></div>
+                        <div class="form-group"><label>E : Extensions (応用)</label><span class="sub-label">知識を使って創造できる</span><textarea id="ice-e-input" placeholder="例：実際にペルソナシートを作成できる"></textarea></div>
+                    </div>
+                    <div class="form-group" style="margin-top:20px;">
+                        <label>体験を通して学習者になってほしい姿（統合ゴール）</label>
+                        <span class="sub-label">3つの要素を繋げた最終的な学習目標文です。</span>
+                        <div class="action-row">
+                            <textarea id="final-goal-statement" class="large-area" style="flex:1; height:120px;" readonly></textarea>
+                            <div style="display:flex; flex-direction:column; gap:10px;">
+                                <button type="button" class="ai-btn" onclick="generateGoalAI()">✨ 生成する (AI)</button>
+                                <button type="button" class="manual-btn" onclick="integrateGoal()">統合する (Manual)</button>
+                            </div>
+                        </div>
+                        <div id="ai-status" style="font-size:0.8rem; color:#666; margin-top:5px;"></div>
+                    </div>
+                    <div class="btn-area">
+                        <div><button type="button" class="secondary" onclick="showStep(1)">← 戻る</button><button type="button" onclick="nextStep(3)">次へ (評価基準) →</button></div>
+                    </div>
+                </div>
+
+                <!-- STEP 3 -->
+                <div id="step3" class="step-container">
+                    <div class="rubric-print-area">
+                        <h2>03. 評価基準 (定義)</h2>
+                        <div class="description">
+                            Step 2で決めた目標を元に、S/A/Bの評価基準を定義します。
+                        </div>
+                        <table class="rubric-table">
+                            <thead><tr><th>Target</th><th>S (Excellent)</th><th>A (Good)</th><th>B (Acceptable)</th></tr></thead>
+                            <tbody>
+                                <tr><td class="rubric-target-cell"><div><strong>Ideas</strong></div><div id="rubric-target-i"></div></td><td><textarea id="rubric-i-s" class="rubric-input" placeholder="S基準..."></textarea></td><td><textarea id="rubric-i-a" class="rubric-input" placeholder="A基準..."></textarea></td><td><textarea id="rubric-i-b" class="rubric-input" placeholder="B基準..."></textarea></td></tr>
+                                <tr><td class="rubric-target-cell"><div><strong>Connections</strong></div><div id="rubric-target-c"></div></td><td><textarea id="rubric-c-s" class="rubric-input" placeholder="S基準..."></textarea></td><td><textarea id="rubric-c-a" class="rubric-input" placeholder="A基準..."></textarea></td><td><textarea id="rubric-c-b" class="rubric-input" placeholder="B基準..."></textarea></td></tr>
+                                <tr><td class="rubric-target-cell"><div><strong>Extensions</strong></div><div id="rubric-target-e"></div></td><td><textarea id="rubric-e-s" class="rubric-input" placeholder="S基準..."></textarea></td><td><textarea id="rubric-e-a" class="rubric-input" placeholder="A基準..."></textarea></td><td><textarea id="rubric-e-b" class="rubric-input" placeholder="B基準..."></textarea></td></tr>
+                                <tr class="print-only rubric-analysis-row"><td class="rubric-target-cell"><div><strong>実施後分析</strong></div></td><td colspan="3" style="height:150px; vertical-align:top; padding:10px;">（ここに実施後のメモや分析を記入してください）</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="btn-area"><button type="button" class="secondary" onclick="showStep(2)">← 戻る</button><div><button type="button" class="print-btn" onclick="printRubric()">評価シートを印刷</button><button type="button" style="margin-left:20px;" onclick="nextStep(4)">次へ (物語) →</button></div></div>
+                </div>
+
+                <!-- STEP 4 -->
+                <div id="step4" class="step-container">
+                    <h2>04. ストーリーと役割</h2>
+                    <div class="description">
+                        学習者が「教える立場」になるための配役を設定します。<br>
+                        <strong>AIに提案してもらう</strong>ことも可能です（Step 2と3の内容を元にします）。
+                    </div>
+                    
+                    <div class="action-row" style="margin-bottom:20px; justify-content:flex-end;">
+                        <div id="ai-story-status" style="font-size:0.8rem; color:#666; margin-right:10px; align-self:center;"></div>
+                        <button type="button" class="ai-btn" onclick="generateStoryAI()">✨ AIで設定を提案</button>
+                    </div>
+
+                    <h3>パートナー (登場人物)</h3>
+                    <div class="grid-2-col"><div class="form-group"><label>名前</label><input type="text" id="npc-name" oninput="updatePreview()" placeholder="例：アーサー"></div><div class="form-group"><label>職業</label><input type="text" id="npc-job"></div></div>
+                    <div class="form-group"><label>夢 / 目的</label><span class="sub-label">動機</span><textarea id="npc-dream" placeholder="例：伝説の秘宝を見つけたい。"></textarea></div>
+                    <div class="form-group"><label>欠落 (Missing Piece)</label><span class="sub-label">不足している知識（学習者が埋める）</span><textarea id="npc-missing" oninput="updatePreview()" placeholder="例：情熱はあるが、知識がない。"></textarea></div>
+                    <h3>Player</h3>
+                    <div class="form-group"><label>学習者の役割</label><span class="sub-label">専門家としての立場</span><input type="text" id="player-role" placeholder="例：歴史学の権威"></div>
+                    <div class="btn-area"><button type="button" class="secondary" onclick="showStep(3)">← 戻る</button><button type="button" onclick="nextStep(5)">次へ (壁) →</button></div>
+                </div>
+
+                <!-- STEP 5 -->
+                <div id="step5" class="step-container">
+                    <h2>05. 3つの壁とエピローグ</h2>
+                    <div class="description">
+                        AIが判定する「3つの課題」を設定します。<br>
+                        <strong>AIに提案してもらう</strong>ことも可能です（Step 2〜4の内容を元にします）。
+                    </div>
+
+                    <div class="action-row" style="margin-bottom:20px; justify-content:flex-end;">
+                        <div id="ai-walls-status" style="font-size:0.8rem; color:#666; margin-right:10px; align-self:center;"></div>
+                        <button type="button" class="ai-btn" onclick="generateWallsAI()">✨ AIで3つの壁を提案</button>
+                    </div>
+
+                    <div class="wall-section"><div class="wall-badge">Stage I : 言葉の壁 (知識)</div>
+                        <div class="guide-box">パートナーは言葉の意味を勘違いしています。</div>
+                        <div class="form-group"><label>状況</label><textarea id="s4-i-situation" oninput="updatePreview()" placeholder="例：登場人物が用語を誤解している。"></textarea></div>
+                        <div class="form-group"><label>登場人物の問い</label><textarea id="s4-i-question" oninput="updatePreview()" placeholder="例：これでお客さんの気持ちわかりますよね？"></textarea></div>
+                        <div class="form-group"><label>【AI指示】合格基準</label><span class="sub-label">AIに判定させる正解の要素</span><textarea id="s4-i-criteria" placeholder="例：「ペルソナは架空の人物であること」「実データに基づくこと」の2点が含まれていれば合格としてください。"></textarea></div>
+                    </div>
+                    <div class="wall-section"><div class="wall-badge">Stage C : 意味の壁 (文脈)</div>
+                        <div class="guide-box">パートナーはやる意味を疑っています。</div>
+                        <div class="form-group"><label>状況</label><textarea id="s4-c-situation" oninput="updatePreview()"></textarea></div>
+                        <div class="form-group"><label>登場人物の問い</label><textarea id="s4-c-question" oninput="updatePreview()"></textarea></div>
+                        <div class="form-group"><label>【AI指示】合格基準</label><textarea id="s4-c-criteria" placeholder="例：手戻りのリスクを回避するためであること、チームの共通認識を作るためであることを説明していれば合格。"></textarea></div>
+                    </div>
+                    <div class="wall-section"><div class="wall-badge">Stage E : 実践の壁 (応用)</div>
+                        <div class="guide-box">パートナーは具体的なやり方が分かりません。</div>
+                        <div class="form-group"><label>状況</label><textarea id="s4-e-situation" oninput="updatePreview()"></textarea></div>
+                        <div class="form-group"><label>登場人物の問い</label><textarea id="s4-e-question" oninput="updatePreview()"></textarea></div>
+                        <div class="form-group"><label>【AI指示】合格基準</label><textarea id="s4-e-criteria" placeholder="例：具体的なプロフィール項目（年齢、趣味、課題など）を挙げて構成案を提示していれば合格。"></textarea></div>
+                    </div>
+                    <!-- Epilogue -->
+                    <div class="wall-section" style="background:#fafafa;"><div class="wall-badge">エピローグ</div>
+                        <div class="form-group"><label>エンディングの言葉</label><textarea id="s4-ending-words" oninput="updatePreview()" placeholder="例：ありがとうございました！"></textarea></div>
+                        <div class="form-group"><label>振り返り (体験/学び/活用)</label><span class="sub-label">ゲーム終了後のメッセージ</span>
+                            <textarea id="s4-epi-exp" oninput="updatePreview()" style="height:60px; margin-bottom:5px;" placeholder="体験..."></textarea>
+                            <textarea id="s4-epi-learn" oninput="updatePreview()" style="height:60px; margin-bottom:5px;" placeholder="学び..."></textarea>
+                            <textarea id="s4-epi-apply" oninput="updatePreview()" style="height:60px;" placeholder="活用..."></textarea>
+                        </div>
+                    </div>
+                    <div class="btn-area"><button type="button" class="secondary" onclick="showStep(4)">← 戻る</button><button type="button" onclick="nextStep(6)">次へ (導入物) →</button></div>
+                </div>
+
+                <!-- STEP 6 -->
+                <div id="step6" class="step-container">
+                    <h2>06. 導入物の制作 (封筒の中身)</h2>
+                    <div class="description">
+                        ここで初めて**プロジェクト名（タイトル）**を決定し、封筒に入れる2枚の紙を作ります。
+                    </div>
+                    <div class="form-group"><label>プロジェクト名</label><input type="text" id="arg-title" oninput="updatePaperPreview()" placeholder="例：歴史探偵と失われた古文書"></div>
+                    <div class="form-group"><label>QRコードURL</label><span class="sub-label">空欄ならStep7のURLを使用</span><input type="text" id="s6-qr-url" oninput="updatePaperPreview()" placeholder="https://..."></div>
+                    <h3>① 学習ガイダンス (白)</h3>
+                    <div class="form-group"><label>タイトル</label><input type="text" id="s6-white-title" value="まず初めにこの紙を読んでください" oninput="updatePaperPreview()"></div>
+                    <div class="form-group"><label>内容物</label><textarea id="s6-white-contents" oninput="updatePaperPreview()"></textarea></div>
+                    <div class="form-group"><label>遊び方</label><textarea id="s6-white-rules" oninput="updatePaperPreview()" class="large-area"></textarea></div>
+                    <h3>② ARG入り口 (黒)</h3>
+                    <div class="form-group"><label>タイトル</label><input type="text" id="s6-black-title" value="STORY" oninput="updatePaperPreview()"></div>
+                    <div class="form-group"><label>ストーリー</label><textarea id="s6-black-story" oninput="updatePaperPreview()" class="large-area"></textarea></div>
+                    <div class="form-group"><label>役割</label><input type="text" id="s6-black-role" oninput="updatePaperPreview()"></div>
+                    <div class="form-group"><label>アクション</label><input type="text" id="s6-black-action" oninput="updatePaperPreview()"></div>
+                    <div class="btn-area">
+                        <button type="button" class="secondary" onclick="showStep(5)">← 戻る</button>
+                        <button type="button" class="print-btn" onclick="printPapers()">封筒の中身を印刷する (A4)</button>
+                        <button type="button" onclick="nextStep(7)">次へ (実装) →</button>
+                    </div>
+                </div>
+
+                <!-- STEP 7 -->
+                <div id="step7" class="step-container">
+                    <h2>07. コード生成・確認 (AI実装)</h2>
+                    <div class="description">
+                        最後にコードを生成します。AI（Gemini API）を使用するため、APIキーを入力してください。<br>
+                        <strong>※APIキーはブラウザ内にのみ保存され、外部には送信されません。</strong>
+                    </div>
+                    <div class="form-group" style="background:#e8f0fe; padding:15px; border-radius:5px;">
+                        <label style="color:#d93025;">★ Google Gemini API Key</label>
+                        <span class="sub-label">Google AI Studioで取得したキーを入力してください。（Step 2と同じものです）</span>
+                        <input type="password" id="api-key" oninput="syncKey('s7')" placeholder="AIzaSy..." style="font-family:monospace;">
+                    </div>
+                    
+                    <div class="form-group"><label>メール件名</label><input type="text" id="s5-email-subject" oninput="updatePreview()"></div>
+                    <div class="form-group"><label>メール本文 ({name}置換)</label><textarea id="s5-email-body" oninput="updatePreview()" class="large-area"></textarea></div>
+                    <div class="form-group"><label>公開URL</label><input type="text" id="s5-chat-url" placeholder="https://..."></div>
+                    
+                    <div class="btn-area" style="display:block; text-align:center;">
+                        <button type="button" class="generate-btn" onclick="generateAllCodes()">コード生成 / 更新</button>
+                    </div>
+                    <h3 style="margin-top:40px;">Generated Code</h3>
+                    <div class="form-group"><label>HTML (index.html)</label><textarea id="output-html" class="code-area" readonly></textarea><button type="button" class="copy-btn secondary" onclick="copyCode('output-html')">コピー</button></div>
+                    <div class="form-group"><label>GAS (Code.gs)</label><textarea id="output-gas" class="code-area" readonly></textarea><button type="button" class="copy-btn secondary" onclick="copyCode('output-gas')">コピー</button></div>
+                    <div class="btn-area"><button type="button" class="secondary" onclick="showStep(6)">← 戻る</button></div>
+                </div>
+            </div>
+
+            <!-- Preview Pane -->
+            <div class="preview-pane" id="previewPane">
+                <div class="preview-label">PREVIEW</div>
+                <div class="preview-tabs" id="digital-tabs">
+                    <button class="preview-tab active" onclick="setPreviewMode('email', this)">Email</button>
+                    <button class="preview-tab" onclick="setPreviewMode('chat', this)">Chat</button>
+                    <button class="preview-tab" onclick="setPreviewMode('epilogue', this)">Epilogue</button>
+                </div>
+                <div class="phone-mockup" id="digital-preview">
+                    <div id="preview-email-screen" class="preview-screen email-screen active"><div class="email-header"><div class="email-subject" id="p-email-sub">Subject</div><div class="email-meta">From: <span id="p-email-from">NPC</span></div></div><div class="email-body"><div id="p-email-text"></div><a href="#" class="email-link-btn">CHAT ROOM</a></div></div>
+                    <div id="preview-chat-screen" class="preview-screen chat-screen"><div class="chat-header"><span id="p-chat-npc-name">NPC</span></div><div class="chat-body" id="p-chat-body"></div></div>
+                    <div id="preview-epilogue-screen" class="preview-screen epilogue-screen"><div id="epi-text-1" class="epi-text visible">体験...</div></div>
+                </div>
+                <div id="paper-preview-container" style="width:100%; display:none; flex-direction:column; align-items:center;">
+                    <div class="preview-tabs"><button class="preview-tab active" onclick="setPaperMode('white', this)">📄 ガイダンス</button><button class="preview-tab" onclick="setPaperMode('black', this)">⬛️ ストーリー</button></div>
+                    <div class="paper-sheet paper-white active" id="pv-sheet-white"><div class="p-title" id="pv-white-title"></div><div class="p-section"><div class="p-head">内容物</div><div class="p-body" id="pv-white-contents"></div></div><div class="p-section"><div class="p-head">遊び方</div><div class="p-body" id="pv-white-rules"></div></div><div class="p-qr"><img id="pv-qr-img" src=""></div></div>
+                    <div class="paper-sheet paper-black" id="pv-sheet-black"><div class="p-title" id="pv-black-title" style="border-color:#fff; text-align:center; margin-top:40px;"></div><div class="p-body" id="pv-black-story" style="text-align:center; padding-top:10px;"></div><div style="border:1px solid white; padding:10px; margin:20px 10px; text-align:center;"><div style="font-weight:bold; margin-bottom:5px;">ROLE</div><div class="p-body" id="pv-black-role"></div></div><div class="p-body" id="pv-black-action" style="text-align:center; font-weight:bold;"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print Areas -->
+    <div class="print-only-area paper-print-area">
+        <div class="paper-page page-white"><div class="print-title" id="pr-white-title"></div><div class="print-section"><div class="print-head">内容物</div><div class="print-body" id="pr-white-contents"></div></div><div class="print-section"><div class="print-head">遊び方・ルール</div><div class="print-body" id="pr-white-rules"></div></div><div class="print-qr-area"><img id="pr-qr-img" class="print-qr-img" src=""><div style="font-size:12pt; margin-top:10pt;">↑ QRコードを読み取って登録してください</div></div></div>
+        <div class="paper-page page-black"><div class="print-title" id="pr-black-title" style="border-color:white; margin-top:50mm;"></div><div class="print-body" id="pr-black-story" style="margin-bottom:30pt; font-size:14pt;"></div><div class="print-section" style="border:1px solid white; padding:20pt; margin:0 20mm;"><div style="font-weight:bold; margin-bottom:10pt; text-align:center;">YOUR ROLE</div><div class="print-body" id="pr-black-role" style="text-align:center;"></div></div><div class="print-body" id="pr-black-action" style="text-align:center; margin-top:30pt; font-weight:bold;"></div></div>
+    </div>
+
+    <script>
+        function enterApp() { document.getElementById('start-screen').classList.add('fade-out'); setTimeout(() => { document.getElementById('start-screen').style.display = 'none'; }, 800); }
+
+        function showStep(step) {
+            document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active')); document.getElementById('step' + step).classList.add('active');
+            document.querySelectorAll('.step-item').forEach(el => el.classList.remove('active')); document.querySelectorAll('.step-item')[step - 1].classList.add('active');
+            
+            const root = document.documentElement; const modeBar = document.getElementById('mode-bar'); const modeLabel = document.getElementById('mode-label');
+            let color = '#0056b3', text = "🎓 EDUCATION MODE";
+            if([4,5,6].includes(step)) { color = '#111'; text = "🎬 STORY MODE"; } else if(step===7) { color = '#555'; text = "⚙️ SYSTEM MODE"; }
+            root.style.setProperty('--active-color', color); modeBar.style.backgroundColor = color; modeLabel.innerText = text;
+
+            const previewPane = document.getElementById('previewPane');
+            if (step === 7) { previewPane.style.display = 'flex'; document.getElementById('digital-preview').style.display='flex'; document.getElementById('paper-preview-container').style.display='none'; document.getElementById('digital-tabs').style.display='flex'; generateAllCodes(); updatePreview(); }
+            else if (step === 6) { previewPane.style.display = 'flex'; document.getElementById('digital-preview').style.display='none'; document.getElementById('paper-preview-container').style.display='flex'; document.getElementById('digital-tabs').style.display='none'; updatePaperPreview(); }
+            else { previewPane.style.display = 'none'; }
+
+            if(step===5) loadStep2Reference();
+            if(step===3) loadRubricTargets();
+        }
+        function nextStep(s) { showStep(s); }
+
+        function setPreviewMode(mode, btn) { document.querySelectorAll('#digital-tabs .preview-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('.preview-screen').forEach(s => s.classList.remove('active')); if(mode==='email') document.getElementById('preview-email-screen').classList.add('active'); else if(mode==='chat') { document.getElementById('preview-chat-screen').classList.add('active'); renderChatPreview(); } else if(mode==='epilogue') { document.getElementById('preview-epilogue-screen').classList.add('active'); renderEpiloguePreview(); } }
+        function updatePreview() { const npcName = document.getElementById('npc-name').value || "NPC"; document.getElementById('p-email-sub').innerText = document.getElementById('s5-email-subject').value || "件名なし"; document.getElementById('p-email-from').innerText = npcName; document.getElementById('p-email-text').innerText = (document.getElementById('s5-email-body').value || "").replace(/{name}/g, "学習者"); document.getElementById('p-chat-npc-name').innerText = npcName; }
+        function renderChatPreview() { const box = document.getElementById('p-chat-body'); box.innerHTML = `<div class="bubble system">接続されました</div>`; const npcName = document.getElementById('npc-name').value || "NPC"; const missing = document.getElementById('npc-missing').value; if(missing) box.innerHTML += `<div class="bubble npc" data-name="${npcName}">${missing}</div>`; const q1 = document.getElementById('s4-i-question').value.split('\n')[0]; if(q1) { box.innerHTML += `<div class="bubble npc" data-name="${npcName}">${q1}</div><div class="bubble player">（回答...）</div>`; } }
+        function renderEpiloguePreview() { const t1 = document.getElementById('s4-epi-exp').value || "体験..."; const e1 = document.getElementById('epi-text-1'); e1.innerText = t1; e1.style.display='block'; setTimeout(() => { e1.style.display='none'; setTimeout(() => e1.style.display='block', 500); }, 2000); }
+        
+        function setPaperMode(mode, btn) { document.querySelectorAll('.paper-sheet').forEach(s => s.classList.remove('active')); document.querySelectorAll('#paper-preview-container .preview-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); document.getElementById('pv-sheet-' + mode).classList.add('active'); }
+        function updatePaperPreview() { const getVal = (id) => document.getElementById(id).value; const wTitle = getVal('s6-white-title') || "ガイダンス"; const wContents = getVal('s6-white-contents'); const wRules = getVal('s6-white-rules'); const bTitle = getVal('s6-black-title') || "STORY"; const bStory = getVal('s6-black-story'); const bRole = getVal('s6-black-role'); const bAction = getVal('s6-black-action'); let url = getVal('s6-qr-url'); if(!url) url = getVal('s5-chat-url'); const qrUrl = url ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}` : ''; document.getElementById('pv-white-title').innerText = wTitle; document.getElementById('pv-white-contents').innerText = wContents; document.getElementById('pv-white-rules').innerText = wRules; document.getElementById('pv-qr-img').src = qrUrl; document.getElementById('pv-black-title').innerText = bTitle; document.getElementById('pv-black-story').innerText = bStory; document.getElementById('pv-black-role').innerText = bRole; document.getElementById('pv-black-action').innerText = bAction; document.getElementById('pr-white-title').innerText = wTitle; document.getElementById('pr-white-contents').innerText = wContents; document.getElementById('pr-white-rules').innerText = wRules; document.getElementById('pr-qr-img').src = qrUrl; document.getElementById('pr-black-title').innerText = bTitle; document.getElementById('pr-black-story').innerText = bStory; document.getElementById('pr-black-role').innerText = bRole; document.getElementById('pr-black-action').innerText = bAction; }
+        
+        function printPapers() { document.body.classList.add('print-step6-active'); window.print(); document.body.classList.remove('print-step6-active'); }
+        function printRubric() { document.body.classList.add('print-step7-active'); window.print(); document.body.classList.remove('print-step7-active'); }
+
+        function integrateGoal() {
+            const i = document.getElementById('ice-i-input').value; const c = document.getElementById('ice-c-input').value; const e = document.getElementById('ice-e-input').value;
+            document.getElementById('final-goal-statement').value = `この体験を通して、\n--------------------\n${i}\n${c}\n${e}\n--------------------\nなって欲しい`;
+        }
+
+        async function generateGoalAI() {
+            const i = document.getElementById('ice-i-input').value; const c = document.getElementById('ice-c-input').value; const e = document.getElementById('ice-e-input').value;
+            const key = document.getElementById('api-key-s2').value.trim();
+            const status = document.getElementById('ai-status');
+            if(!key) { alert("APIキーを入力してください"); return; }
+            if(!i || !c || !e) { alert("I, C, Eを入力してください"); return; }
+            status.innerText = "生成中...";
+            const tryModel = async (modelName) => {
+                const prompt = `以下のI, C, Eの学習目標を統合し、「この体験を通して...なってほしい」という形式で、1つの滑らかな日本語の文章にしてください。\nI:${i}\nC:${c}\nE:${e}`;
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=`+key,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({contents:[{parts:[{text:prompt}]}]}) });
+                const d = await res.json(); if(d.error) throw new Error(d.error.message); return d.candidates[0].content.parts[0].text.trim();
+            };
+            try { const text = await tryModel('gemini-1.5-flash'); document.getElementById('final-goal-statement').value = text; status.innerText = "生成完了"; } catch(e) { status.innerText = "エラー: " + e.message; alert("AI生成に失敗: " + e.message); }
+        }
+        
+        async function generateStoryAI() {
+            const theme = document.getElementById('subject-theme').value; const target = document.getElementById('target-audience').value; const goal = document.getElementById('final-goal-statement').value;
+            const i_def = document.getElementById('rubric-i-s').value; const c_def = document.getElementById('rubric-c-s').value; const e_def = document.getElementById('rubric-e-s').value;
+            const key = document.getElementById('api-key-s2').value.trim();
+            const status = document.getElementById('ai-story-status');
+            if(!key) { alert("Step 2でAPIキーを入力してください"); return; }
+            status.innerText = "生成中...";
+            const prompt = `教育ARGのシナリオ設定を提案して。テーマ:${theme}, 対象:${target}, 目標:${goal}, 評価S(I:${i_def}, C:${c_def}, E:${e_def})。出力JSON:{ "npcName":"名前", "npcJob":"職業", "npcDream":"夢", "npcMissing":"欠落知識", "playerRole":"役割" }`;
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=`+key,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({contents:[{parts:[{text:prompt}]}]}) });
+                const d = await res.json();
+                const txt = d.candidates[0].content.parts[0].text;
+                const json = JSON.parse(txt.substring(txt.indexOf('{'), txt.lastIndexOf('}')+1));
+                document.getElementById('npc-name').value = json.npcName; document.getElementById('npc-job').value = json.npcJob;
+                document.getElementById('npc-dream').value = json.npcDream; document.getElementById('npc-missing').value = json.npcMissing;
+                document.getElementById('player-role').value = json.playerRole;
+                updatePreview(); status.innerText = "生成完了";
+            } catch(e) { status.innerText = "エラー"; alert("生成失敗: " + e.message); }
+        }
+
+        async function generateWallsAI() {
+            const key = document.getElementById('api-key-s2').value.trim();
+            const status = document.getElementById('ai-walls-status');
+            if(!key) { alert("Step 2でAPIキーを入力してください"); return; }
+            status.innerText = "生成中...";
+            
+            const goal = document.getElementById('final-goal-statement').value;
+            const npc = document.getElementById('npc-name').value;
+            const missing = document.getElementById('npc-missing').value;
+            const i_s = document.getElementById('rubric-i-s').value; const c_s = document.getElementById('rubric-c-s').value; const e_s = document.getElementById('rubric-e-s').value;
+
+            const prompt = `教育ARGの「3つの壁」と「エピローグ」を提案して。
+目標:${goal}, NPC:${npc}, 欠落:${missing}
+評価基準(S) I:${i_s}, C:${c_s}, E:${e_s}
+Iの壁(知識誤解), Cの壁(意義疑問), Eの壁(実践困難)の3段階。
+出力JSON: {
+  "i_situation":"I状況", "i_question":"I問い", "i_criteria":"I合格基準",
+  "c_situation":"C状況", "c_question":"C問い", "c_criteria":"C合格基準",
+  "e_situation":"E状況", "e_question":"E問い", "e_criteria":"E合格基準",
+  "ending_word":"感謝の言葉", "epi_exp":"体験振り返り", "epi_learn":"学び定義", "epi_apply":"日常活用"
+}`;
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=`+key,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({contents:[{parts:[{text:prompt}]}]}) });
+                const d = await res.json();
+                const txt = d.candidates[0].content.parts[0].text;
+                const json = JSON.parse(txt.substring(txt.indexOf('{'), txt.lastIndexOf('}')+1));
+                
+                const set = (id, v) => document.getElementById(id).value = v;
+                set('s4-i-situation', json.i_situation); set('s4-i-question', json.i_question); set('s4-i-criteria', json.i_criteria);
+                set('s4-c-situation', json.c_situation); set('s4-c-question', json.c_question); set('s4-c-criteria', json.c_criteria);
+                set('s4-e-situation', json.e_situation); set('s4-e-question', json.e_question); set('s4-e-criteria', json.e_criteria);
+                set('s4-ending-words', json.ending_word); set('s4-epi-exp', json.epi_exp); set('s4-epi-learn', json.epi_learn); set('s4-epi-apply', json.epi_apply);
+                
+                updatePreview(); status.innerText = "生成完了";
+            } catch(e) { status.innerText = "エラー"; alert("生成失敗: " + e.message); }
+        }
+
+        function syncKey(source) {
+            const v = document.getElementById(source==='s2'?'api-key-s2':'api-key').value;
+            document.getElementById('api-key-s2').value = v;
+            document.getElementById('api-key').value = v;
+        }
+
+        function generateAllCodes() {
+            const npcName = document.getElementById('npc-name').value || "NPC"; const apiKey = document.getElementById('api-key').value.trim() || "";
+            const chatUrl = document.getElementById('s5-chat-url').value || ""; const emailSub = document.getElementById('s5-email-subject').value || ""; const emailBody = document.getElementById('s5-email-body').value || "";
+            const epiExp = document.getElementById('s4-epi-exp').value.replace(/\n/g, '<br>'); const epiLearn = document.getElementById('s4-epi-learn').value.replace(/\n/g, '<br>'); const epiApply = document.getElementById('s4-epi-apply').value.replace(/\n/g, '<br>');
+
+            const gas = `function onFormSubmit(e) {\n  var r = e.response.getItemResponses();\n  var name = r[0].getResponse(); var email = r[1].getResponse();\n  var body = \`${emailBody}\`.replace(/{name}/g, name);\n  body += "\\n\\n▼CHAT:\\n" + "${chatUrl}";\n  GmailApp.sendEmail(email, "${emailSub}", body);\n}`;
+            document.getElementById('output-gas').value = gas;
+
+            const getVal = (id) => document.getElementById(id).value.replace(/\n/g, '\\n').replace(/"/g, '\\"');
+            const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${npcName}</title><style>body{font-family:sans-serif;background:#7494c0;margin:0;height:100vh;display:flex;flex-direction:column}.header{background:#2c3e50;color:white;padding:15px;font-weight:bold}.container{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:15px}.msg{max-width:80%;padding:10px;border-radius:10px;font-size:14px;line-height:1.4;position:relative}.npc{align-self:flex-start;background:white}.player{align-self:flex-end;background:#85e249}.system{align-self:center;background:#00000033;color:white;font-size:12px;padding:4px 10px;border-radius:10px}.input-area{background:white;padding:10px;display:flex;gap:10px}input{flex:1;padding:10px;border:1px solid #ccc;border-radius:20px}button{background:#2c3e50;color:white;border:none;padding:0 20px;border-radius:20px}#epi-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:black;color:white;z-index:999;flex-direction:column;justify-content:center;align-items:center;font-family:serif;text-align:center;line-height:2;font-size:1.2rem;opacity:0;transition:opacity 2s}.epi-text{display:none;opacity:0;transition:opacity 1s}.epi-text.visible{opacity:1}</style></head><body><div class="header">${npcName}</div><div class="container" id="box"></div><div class="input-area"><input type="text" id="in"><button onclick="send()">送信</button></div><div id="epi-overlay"><div id="e1" class="epi-text">${epiExp}</div><div id="e2" class="epi-text">${epiLearn}</div><div id="e3" class="epi-text">${epiApply}</div></div><script>
+const API_KEY="${apiKey}";
+const STAGES=[
+ {id:'I', s:"${getVal('s4-i-situation')}", q:"${getVal('s4-i-question')}", c:"${getVal('s4-i-criteria')}"},
+ {id:'C', s:"${getVal('s4-c-situation')}", q:"${getVal('s4-c-question')}", c:"${getVal('s4-c-criteria')}"},
+ {id:'E', s:"${getVal('s4-e-situation')}", q:"${getVal('s4-e-question')}", c:"${getVal('s4-e-criteria')}"},
+ {id:'END', q:"${getVal('s4-ending-words')}"}
+];
+let cur=0;
+async function callAI(u){
+  const st=STAGES[cur];
+  const sysPrompt=\`You are ${npcName}. User is ${getVal('player-role')}. Situation: \${st.s}. Goal: Check if user input meets: "\${st.c}". If YES, JSON {"pass":true, "reply":"(Reaction)"}. If NO, JSON {"pass":false, "reply":"(Hint)"}. Reply ONLY JSON.\`;
+  try {
+    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+API_KEY,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{role:"user",parts:[{text:sysPrompt+" User: "+u}]}]})});
+    const d=await res.json();
+    const txt=d.candidates[0].content.parts[0].text;
+    const json=JSON.parse(txt.substring(txt.indexOf('{'), txt.lastIndexOf('}')+1));
+    return json;
+  } catch(e) { return {pass:false, reply:"(エラー: APIキーを確認してください)"}; }
+}
+function add(t,y){const d=document.createElement('div');d.className='msg '+y;d.innerHTML=t;document.getElementById('box').appendChild(d);}
+function next(){if(cur>=STAGES.length)return;const st=STAGES[cur];
+ if(st.id==='END'){ setTimeout(()=>{add(st.q,'npc'); setTimeout(showEpi,3000)},1000); return;}
+ if(st.s) add("状況: "+st.s,'system');
+ const qs=st.q.split('\\n'); let d=500;
+ qs.forEach(q=>{ setTimeout(()=>{add(q,'npc')},d); d+=1000; });
+}
+async function send(){
+ const v=document.getElementById('in').value; if(!v)return; add(v,'player'); document.getElementById('in').value='';
+ const ai=await callAI(v);
+ add(ai.reply,'npc');
+ if(ai.pass){ cur++; setTimeout(next,1000); }
+}
+function showEpi(){const el=document.getElementById('epi-overlay');el.style.display='flex';setTimeout(()=>el.style.opacity='1',100);const show=(id)=>{return new Promise(r=>{const p=document.getElementById(id);p.style.display='block';setTimeout(()=>p.classList.add('visible'),100);setTimeout(()=>{p.classList.remove('visible');setTimeout(()=>{p.style.display='none';r()},1500)},5000)})};const last=(id)=>{document.getElementById(id).style.display='block';setTimeout(()=>document.getElementById(id).classList.add('visible'),100)};(async()=>{await show('e1');await show('e2');last('e3')})()}
+window.onload=()=>{add('接続されました','system');next()};
+<\/script></body></html>`;
+            document.getElementById('output-html').value = html;
+        }
+
+        function loadStep2Reference() { document.getElementById('display-ice-i').innerText = document.getElementById('ice-i-input').value || "未入力"; document.getElementById('display-ice-c').innerText = document.getElementById('ice-c-input').value || "未入力"; document.getElementById('display-ice-e').innerText = document.getElementById('ice-e-input').value || "未入力"; }
+        function loadRubricTargets() { document.getElementById('rubric-target-i').innerText = document.getElementById('ice-i-input').value || "（Step 2で入力）"; document.getElementById('rubric-target-c').innerText = document.getElementById('ice-c-input').value || "（Step 2で入力）"; document.getElementById('rubric-target-e').innerText = document.getElementById('ice-e-input').value || "（Step 2で入力）"; }
+
+        window.onload = () => { showStep(1); };
+    </script>
+</body>
+</html>
